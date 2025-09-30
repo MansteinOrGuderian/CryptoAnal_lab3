@@ -37,8 +37,8 @@ using namespace chrono;
 const string MitM_test_path = "../var_data/test/MitM_RSA_256_var15.txt"; // ../var_data/MitM_RSA_2048_20_regular_hard_var15.txt
 const uint32_t E_CONST = 65537; // Common public exponent for RSA
 
-const string SE_test_path = "../var_data/test/SE_RSA_256_var15.txt"; // ../var_data/SE_RSA_1024_5_hard_var15.txt
-const uint32_t SE_COUNT = 3; // 5
+const string SE_test_path = "../var_data/SE_RSA_1024_5_hard_var15.txt"; // ../var_data/test/SE_RSA_256_var15.txt
+const uint32_t SE_COUNT = 5; // 3
 
 // Parsing input hex to BigInteger
 unordered_map<string, mpz_class> read_txt(const string& path) {
@@ -118,9 +118,54 @@ mpz_class Chinese_Remainder_Theorem_solver(const std::vector<mpz_class>& Ns, con
     return res;
 }
 
-int main() {
+// Small Exponent attack
+duration<double, micro> Small_Exponent_attack_test() {
+    std::cout << "Getting values from: '" << SE_test_path << "'" << std::endl;
+    auto test_values = read_txt(SE_test_path);
 
+    std::vector<mpz_class> Ns, Cs;
+
+    std::cout << "Small Exponent attack started" << std::endl;
+    for (uint32_t i = 1; i <= SE_COUNT; ++i) {
+        string n_key = "N" + to_string(i);
+        string c_key = "C" + to_string(i);
+
+        Ns.push_back(test_values[n_key]);
+        Cs.push_back(test_values[c_key]);
+
+        std::cout << n_key << " = " << Ns.back() << std::endl;
+        std::cout << c_key << " = " << Cs.back() << std::endl;
+    }
+
+    auto timer = steady_clock::now();
+
+    mpz_class C = Chinese_Remainder_Theorem_solver(Ns, Cs);
+
+    uint32_t e = SE_COUNT; // Small exponent is public info
+    mpz_class M;
+    mpz_root(M.get_mpz_t(), C.get_mpz_t(), e);
+
+    std::cout << "SE message: " << M << '\n' << "SE message in hex : ";
+    gmp_printf("%Zx\n", M); // output in hex
+    return steady_clock::now() - timer;
 }
+
+int main() {
+    try {
+        std::cout << "\n--------------------------------------------\n" << std::endl;
+
+        auto SE_time = Small_Exponent_attack_test();
+        std::cout << "'Small exponent' execution time: " << SE_time.count() << " x 10^-6 s" << std::endl;
+
+    }
+    catch (const exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
