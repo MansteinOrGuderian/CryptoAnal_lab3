@@ -62,6 +62,62 @@ unordered_map<string, mpz_class> read_txt(const string& path) {
     return test_values;
 }
 
+// Extended Euclidean Algorithm for Bezout coefficients
+std::pair<mpz_class, mpz_class> Extended_Euclidean_algorithm(const mpz_class& a, const mpz_class& b) {
+    bool swap = false;
+    if (a < b)
+        swap = true;
+
+    mpz_class m = a, n = b;
+    if (swap)
+        std::swap(m, n);
+
+    mpz_class old_v = 1, v = 0;
+    mpz_class old_u = 0, u = 1;
+
+    while (n != 0) {
+        mpz_class q = m / n;
+        mpz_class temp = n;
+        n = m - (q * n);
+        m = temp;
+
+        temp = v;
+        v = old_v - (q * v);
+        old_v = temp;
+
+        temp = u;
+        u = old_u - (q * u);
+        old_u = temp;
+    }
+
+    if (swap)
+        return make_pair(old_u, old_v);
+
+    return make_pair(old_v, old_u);
+}
+
+// Chinese Remainder Theorem solver. System of x ≡ Cs[i] (mod Ns[i])
+mpz_class Chinese_Remainder_Theorem_solver(const std::vector<mpz_class>& Ns, const std::vector<mpz_class>& Cs) {
+    mpz_class PROD_N = 1;
+    for (const auto& n : Ns)
+        PROD_N *= n;
+
+    std::vector<mpz_class> Ni, Mi;
+    for (const auto& ni : Ns) {
+        Ni.push_back(PROD_N / ni);
+        Mi.push_back(Extended_Euclidean_algorithm(Ni.back(), ni).first);
+    }
+
+    mpz_class res = 0;
+    for (size_t i = 0; i < Cs.size(); ++i)
+        res = (res + (Cs[i] * Ni[i] * Mi[i])) % PROD_N;
+
+    if (res < 0)
+        res = res + PROD_N;
+
+    return res;
+}
+
 int main() {
 
 }
