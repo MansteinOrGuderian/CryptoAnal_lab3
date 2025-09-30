@@ -495,7 +495,8 @@ TSWLatexianTemp*
 #*Notes.bib
 
 LaTeX/DefendInfo
-
+CplusCode/data
+CplusCode/x64
 # .cpp
 *.exe
 .vs
