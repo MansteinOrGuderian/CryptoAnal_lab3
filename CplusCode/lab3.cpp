@@ -467,6 +467,37 @@ duration<double, micro> Optimized_Space_Meet_in_the_Middle_attack() {
 }
 
 // ---------------------------------------------------------------------------
+// ------------------- Bruteforce attack time measure  -----------------------
+// ---------------------------------------------------------------------------
+
+duration<double, micro> bruteforce_try_once_time() {
+    mpz_class e(static_cast<unsigned long>(E_CONST));
+
+    cout << "Getting values from: '" << MitM_test_path << "'" << endl;
+    auto test_values = read_txt(MitM_test_path);
+    mpz_class N = test_values["N"];
+    mpz_class C = test_values["C"];
+
+    random_device rd;
+    gmp_randstate_t state;
+    gmp_randinit_mt(state);
+    gmp_randseed_ui(state, rd());
+
+    mpz_class M;
+    mpz_urandomb(M.get_mpz_t(), state, L_CONST);
+
+    auto timer = steady_clock::now();
+
+    M = M + 1;
+    mpz_class C_maybe = modpow(M, e, N);
+    bool cmp = (C_maybe == C);
+
+    gmp_randclear(state);
+
+    return steady_clock::now() - timer;
+}
+
+// ---------------------------------------------------------------------------
 // ---------------------------- Main function --------------------------------
 // ---------------------------------------------------------------------------
 
@@ -477,11 +508,14 @@ int main() {
         // auto SE_time = Small_Exponent_attack();
         // std::cout << "'Small exponent' execution time: " << SE_time.count() << " mu s" << std::endl;
 
-        auto simple_MitM_time = Pure_Meet_in_the_Middle_attack();
-        cout << "Simple 'Meet in the middle' execution time: " << simple_MitM_time.count() << " mu s" << endl;
+        // auto simple_MitM_time = Pure_Meet_in_the_Middle_attack();
+        // cout << "Simple 'Meet in the middle' execution time: " << simple_MitM_time.count() << " mu s" << endl;
 
-        auto optimized_MitM_time = Optimized_Space_Meet_in_the_Middle_attack();
-        cout << "Optimized 'Meet in the middle' execution time: " << optimized_MitM_time.count() << " mu s" << endl;
+        // auto optimized_MitM_time = Optimized_Space_Meet_in_the_Middle_attack();
+        // cout << "Optimized 'Meet in the middle' execution time: " << optimized_MitM_time.count() << " mu s" << endl;
+
+        auto brutforce_time = bruteforce_try_once_time();
+        cout << "Bruteforce once try (find next M & get C & make a compare) time:" << brutforce_time.count() << " mu s" << endl;
 
     }
     catch (const exception& e) {
