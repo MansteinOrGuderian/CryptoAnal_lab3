@@ -358,6 +358,114 @@ duration<double, micro> Pure_Meet_in_the_Middle_attack() {
     return steady_clock::now() - timer;
 }
 
+duration<double, micro> Optimized_Space_Meet_in_the_Middle_attack() {
+    mpz_class e(static_cast<unsigned long>(E_CONST));
+
+    cout << "Getting values from: '" << MitM_test_path << "'" << endl;
+    auto test_values = read_txt(MitM_test_path);
+    mpz_class N = test_values["N"];
+    mpz_class C = test_values["C"];
+
+    cout << "> MitM (optimized) attack started for:" << endl;
+    cout << "l = " << L_CONST << endl;
+    cout << "N: " << N << endl;
+    cout << "C: " << C << endl;
+
+    auto timer = steady_clock::now();
+    size_t blocks = 1ULL << ((L_CONST / 2) - BLOCK_POWER);
+
+    for (size_t bn_t = USER_BLOCK_SHIFT; bn_t < blocks; ++bn_t) {
+        cout << "Start: bn_t = " << bn_t << ", bn_s = " << bn_t << " : " <<
+            duration_cast<microseconds>(steady_clock::now() - timer).count() << endl;
+
+        // Symmetrical case
+        size_t shift_t_start = 1 + bn_t * BLOCK_SIZE;
+        size_t shift_t_end = (bn_t + 1) * BLOCK_SIZE;
+
+        ConcurrentMap<mpz_class, mpz_class, MpzHash> T_block;
+        T_block.reserve(BLOCK_SIZE);
+
+        parallel_for_simple(shift_t_start, shift_t_end + 1, [&](size_t a) {
+            mpz_class num(static_cast<unsigned long>(a));
+            mpz_class num_e = modpow(num, e, N);
+            T_block.insert(num_e, num);
+            });
+
+        cout << "Generated: bn_t = " << bn_t << ", bn_s = " << bn_t << " : " <<
+            duration_cast<microseconds>(steady_clock::now() - timer).count() << endl;
+
+        // Check for solution in symmetric case
+        auto T_map_copy = T_block.get_copy();
+        for (auto it = T_map_copy.begin(); it != T_map_copy.end(); ++it) {
+            mpz_class C_S = (C * modinv(it->first, N)) % N;
+            mpz_class found_val;
+            if (T_block.find(C_S, found_val)) {
+                mpz_class M = it->second * found_val;
+                cout << "MitM message: " << M << endl;
+
+                ofstream result_file("result.txt");
+                result_file << "MitM found message: " << M << endl;
+                return steady_clock::now() - timer;
+            }
+        }
+
+        cout << "End: bn_t = " << bn_t << ", bn_s = " << bn_t << " : " <<
+            duration_cast<microseconds>(steady_clock::now() - timer).count() << endl;
+
+        // Asymmetrical case
+        for (size_t bn_s = bn_t + 1; bn_s < blocks; ++bn_s) {
+            cout << "Start: bn_t = " << bn_t << ", bn_s = " << bn_s << " : " <<
+                duration_cast<microseconds>(steady_clock::now() - timer).count() << endl;
+
+            size_t shift_s_start = 1 + bn_s * BLOCK_SIZE;
+            size_t shift_s_end = (bn_s + 1) * BLOCK_SIZE;
+
+            ConcurrentMap<mpz_class, mpz_class, MpzHash> S_block;
+            S_block.reserve(BLOCK_SIZE);
+
+            parallel_for_simple(shift_s_start, shift_s_end + 1, [&](size_t a) {
+                mpz_class num(static_cast<unsigned long>(a));
+                mpz_class num_e = modpow(num, e, N);
+                S_block.insert(num_e, num);
+                });
+
+            // Compare blocks
+            auto S_map_copy = S_block.get_copy();
+            for (auto it = S_map_copy.begin(); it != S_map_copy.end(); ++it) {
+                mpz_class C_S = (C * modinv(it->first, N)) % N;
+                mpz_class found_val;
+                if (T_block.find(C_S, found_val)) {
+                    mpz_class M = it->second * found_val;
+                    cout << "MitM message: " << M << endl;
+
+                    ofstream result_file("result.txt");
+                    result_file << "MitM found message: " << M << endl;
+                    return steady_clock::now() - timer;
+                }
+            }
+
+            for (auto it = T_map_copy.begin(); it != T_map_copy.end(); ++it) {
+                mpz_class C_S = (C * modinv(it->first, N)) % N;
+                mpz_class found_val;
+                if (S_block.find(C_S, found_val)) {
+                    mpz_class M = it->second * found_val;
+                    cout << "MitM message: " << M << endl;
+
+                    ofstream result_file("Optimized_MitM_result.txt");
+                    result_file << "MitM found message: " << M << endl;
+                    return steady_clock::now() - timer;
+                }
+            }
+
+            cout << "End: bn_t = " << bn_t << ", bn_s = " << bn_s << " : " <<
+                duration_cast<microseconds>(steady_clock::now() - timer).count() << endl;
+        }
+    }
+
+    cout << "Message for MitM not found! Damn it!" << endl;
+    return steady_clock::now() - timer;
+}
+
 // ---------------------------------------------------------------------------
 // ---------------------------- Main function --------------------------------
 // ---------------------------------------------------------------------------
@@ -370,7 +478,10 @@ int main() {
         // std::cout << "'Small exponent' execution time: " << SE_time.count() << " mu s" << std::endl;
 
         auto simple_MitM_time = Pure_Meet_in_the_Middle_attack();
-        cout << "Simple Meet in the middle' execution time: " << simple_MitM_time.count() << " mu s" << endl;
+        cout << "Simple 'Meet in the middle' execution time: " << simple_MitM_time.count() << " mu s" << endl;
+
+        auto optimized_MitM_time = Optimized_Space_Meet_in_the_Middle_attack();
+        cout << "Optimized 'Meet in the middle' execution time: " << optimized_MitM_time.count() << " mu s" << endl;
 
     }
     catch (const exception& e) {
