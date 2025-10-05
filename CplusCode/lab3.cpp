@@ -142,6 +142,68 @@ mpz_class Chinese_Remainder_Theorem_solver(const std::vector<mpz_class>& Ns, con
     return res;
 }
 
+// Custom compute of n-th root using Newton's method (tangent method)
+void nth_root(mpz_class& result, const mpz_class& n, unsigned long k) {
+    // Handle edge cases
+    if (k == 0) {
+        throw std::invalid_argument("Cannot take 0th root");
+    }
+    if (k == 1) {
+        result = n;
+        return;
+    }
+    if (n == 0) {
+        result = 0;
+        return;
+    }
+
+    // Initial guess: x0 = n / k
+    mpz_class x = n / k;
+    if (x == 0) 
+        x = 1;
+
+    mpz_class x_prev;
+    mpz_class k_minus_1(k - 1);
+    mpz_class k_mpz(k);
+
+    // Newton's method: x_{i+1} = ((k-1) * x_{i} + n / x_{i}^(k-1)) / k
+    do {
+        x_prev = x;
+
+        mpz_class x_power_k_minus_1;
+        mpz_pow_ui(x_power_k_minus_1.get_mpz_t(), x.get_mpz_t(), k - 1);
+
+        // x = ((k-1) * x + n / x^(k-1)) / k
+        mpz_class numerator = k_minus_1 * x + (n / x_power_k_minus_1);
+        x = numerator / k_mpz;
+
+    } while (x < x_prev);
+
+    // Verify & adjust
+    mpz_class x_power_k;
+    mpz_pow_ui(x_power_k.get_mpz_t(), x.get_mpz_t(), k);
+
+    if (x_power_k > n) {
+        while (x_power_k > n && x > 0) {
+            x--;
+            mpz_pow_ui(x_power_k.get_mpz_t(), x.get_mpz_t(), k);
+        }
+    }
+    else {
+        mpz_class x_plus_1 = x + 1;
+        mpz_class x_plus_1_power_k;
+        mpz_pow_ui(x_plus_1_power_k.get_mpz_t(), x_plus_1.get_mpz_t(), k);
+
+        while (x_plus_1_power_k <= n) {
+            x = x_plus_1;
+            x_plus_1++;
+            mpz_pow_ui(x_plus_1_power_k.get_mpz_t(), x_plus_1.get_mpz_t(), k);
+        }
+    }
+
+    result = x;
+}
+
 // Small Exponent attack
 duration<double, micro> Small_Exponent_attack() {
     std::cout << "Getting values from: '" << SE_test_path << "'" << std::endl;
@@ -167,7 +229,7 @@ duration<double, micro> Small_Exponent_attack() {
 
     uint32_t e = SE_COUNT; // Small exponent is public info
     mpz_class M;
-    mpz_root(M.get_mpz_t(), C.get_mpz_t(), e);
+    nth_root(M, C, e); // or just mpz_root(M.get_mpz_t(), C.get_mpz_t(), e);
 
     std::cout << "SE message: " << M << '\n' << "SE message in hex : ";
     gmp_printf("%Zx\n", M); // output in hex
@@ -637,8 +699,8 @@ int main() {
     try {
         std::cout << "\n--------------------------------------------\n" << std::endl;
 
-        auto SE_time = Small_Exponent_attack();
-        std::cout << "'Small exponent' execution time: " << SE_time.count() << " mu s" <<std::endl;
+        // auto SE_time = Small_Exponent_attack();
+        // std::cout << "'Small exponent' execution time: " << SE_time.count() << " mu s" <<std::endl;
 
         // auto simple_MitM_time = Pure_Meet_in_the_Middle_attack();
         // std::cout << "Simple 'Meet in the middle' execution time: " << simple_MitM_time.count() << " mu s" << std::endl;
