@@ -14,6 +14,11 @@
 #include <random>        // For random number generation
 #include <algorithm>     // For algorithms like std::swap
 
+#include <thread>        // For multi-threading
+#include <numeric>       // For numeric operations
+#include <mutex>         // For thread synchronization
+#include <atomic>        // For atomic operations in threading
+
 // GMP library with MSVC warning suppressions
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -33,14 +38,28 @@
 using namespace std;
 using namespace chrono;
 
-// Testing settings
-const string MitM_test_path = "../var_data/test/MitM_RSA_256_var15.txt"; // ../var_data/MitM_RSA_2048_20_regular_hard_var15.txt
-const uint32_t E_CONST = 65537; // Common public exponent for RSA
+// ---------------------------------------------------------------------------
+// ----------------------- Constants & Input Data ----------------------------
+// ---------------------------------------------------------------------------
 
-const string SE_test_path = "../var_data/SE_RSA_1024_5_hard_var15.txt"; // ../var_data/test/SE_RSA_256_var15.txt
-const uint32_t SE_COUNT = 5; // 3
+// Small exponent attack
+const string SE_test_path = "../var_data/SE_RSA_1024_5_hard_var15.txt"; // ../var_data/test_SE_RSA_256_var15.txt 
+const uint32_t SE_COUNT = 5; // 3 - for test data
 
-// Parsing input hex to BigInteger
+// Man(Meet)-in-the-Middle attack
+const string MitM_test_path = "../var_data/MitM_RSA_2048_20_regular_hard_var15.txt"; // ../var_data/test_MitM_RSA_256_var15.txt
+const uint32_t E_CONST = 65537; // ../var_data/bonus_MitM_RSA_2048_56_var15.txt"
+const uint32_t L_CONST = 56;
+
+// For concurrency calculation in MitM
+const uint32_t BLOCK_POWER = 24;
+const size_t BLOCK_SIZE = 1ULL << BLOCK_POWER;
+const size_t USER_BLOCK_SHIFT = 0;
+
+// ---------------------------------------------------------------------------
+// ------------------ Parsing input hex to Integers --------------------------
+// ---------------------------------------------------------------------------
+
 unordered_map<string, mpz_class> read_txt(const string& path) {
     unordered_map<string, mpz_class> test_values;
     ifstream file(path);
@@ -61,6 +80,11 @@ unordered_map<string, mpz_class> read_txt(const string& path) {
 
     return test_values;
 }
+
+
+// ---------------------------------------------------------------------------
+// ------------------------- Small Exponent attack ---------------------------
+// ---------------------------------------------------------------------------
 
 // Extended Euclidean Algorithm for Bezout coefficients
 std::pair<mpz_class, mpz_class> Extended_Euclidean_algorithm(const mpz_class& a, const mpz_class& b) {
@@ -150,12 +174,121 @@ duration<double, micro> Small_Exponent_attack_test() {
     return steady_clock::now() - timer;
 }
 
+// ---------------------------------------------------------------------------
+// -------------------------- Utility functions ------------------------------
+// ---------------------------------------------------------------------------
+
+// (a * x) mod n = 1
+mpz_class modinv(const mpz_class& a, const mpz_class& n) {
+    mpz_class result;
+    mpz_invert(result.get_mpz_t(), a.get_mpz_t(), n.get_mpz_t());
+    return result; // x
+}
+
+// base^exp mod mod
+mpz_class modpow(const mpz_class& base, const mpz_class& exp, const mpz_class& mod) {
+    mpz_class result;
+    mpz_powm(result.get_mpz_t(), base.get_mpz_t(), exp.get_mpz_t(), mod.get_mpz_t());
+    return result;
+}
+
+// Custom hash function, allows using GMP big integers as keys in hash maps by converting them to strings first.
+struct MpzHash { 
+    size_t operator()(const mpz_class& key) const {
+        return hash<string>()(key.get_str());
+    }
+};
+
+// ---------------------------------------------------------------------------
+// --------------- Parallel processing function helpers ----------------------
+// ---------------------------------------------------------------------------
+
+// A wrapper around unordered_map. Adds thread safety through mutex locking.
+template<typename K, typename V, typename H = hash<K>>
+class ConcurrentMap { 
+private:
+    unordered_map<K, V, H> map_;
+    mutable mutex mutex_;
+
+public:
+    void insert(const K& key, const V& value) {
+        lock_guard<mutex> lock(mutex_);
+        map_[key] = value;
+    }
+
+    bool find(const K& key, V& value) const {
+        lock_guard<mutex> lock(mutex_);
+        auto it = map_.find(key);
+        if (it != map_.end()) {
+            value = it->second;
+            return true;
+        }
+        return false;
+    }
+
+    bool contains(const K& key) const {
+        lock_guard<mutex> lock(mutex_);
+        return map_.find(key) != map_.end();
+    }
+
+    unordered_map<K, V, H> get_copy() const {
+        lock_guard<mutex> lock(mutex_);
+        return map_;
+    }
+
+    size_t size() const {
+        lock_guard<mutex> lock(mutex_);
+        return map_.size();
+    }
+
+    void reserve(size_t n) {
+        lock_guard<mutex> lock(mutex_);
+        map_.reserve(n);
+    }
+};
+
+// Splits a range of work across multiple CPU threads for faster processing. (Simple parallelization) 
+template<typename Func>
+void parallel_for_simple(size_t start, size_t end, Func f) {
+    size_t num_threads = thread::hardware_concurrency();
+    if (num_threads == 0) 
+        num_threads = 4; // Default to 4 if detection fails
+
+    vector<thread> threads;
+    size_t chunk_size = (end - start) / num_threads;
+
+    for (size_t t = 0; t < num_threads; ++t) {
+        size_t thread_start = start + t * chunk_size;
+        size_t thread_end = (t == num_threads - 1) ? end : thread_start + chunk_size;
+
+        threads.emplace_back([thread_start, thread_end, &f]() {
+            for (size_t i = thread_start; i < thread_end; ++i) {
+                f(i);
+            }
+            });
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ------------------ Man(Meet)-in-the-Middle attack -------------------------
+// ---------------------------------------------------------------------------
+
+// TODO
+
+// ---------------------------------------------------------------------------
+// ---------------------------- Main function --------------------------------
+// ---------------------------------------------------------------------------
+
 int main() {
     try {
         std::cout << "\n--------------------------------------------\n" << std::endl;
 
         auto SE_time = Small_Exponent_attack_test();
-        std::cout << "'Small exponent' execution time: " << SE_time.count() << " x 10^-6 s" << std::endl;
+        std::cout << "'Small exponent' execution time: " << SE_time.count() << " mu s" << std::endl;
 
     }
     catch (const exception& e) {
