@@ -81,7 +81,6 @@ unordered_map<string, mpz_class> read_txt(const string& path) {
     return test_values;
 }
 
-
 // ---------------------------------------------------------------------------
 // ------------------------- Small Exponent attack ---------------------------
 // ---------------------------------------------------------------------------
@@ -143,7 +142,7 @@ mpz_class Chinese_Remainder_Theorem_solver(const std::vector<mpz_class>& Ns, con
 }
 
 // Small Exponent attack
-duration<double, micro> Small_Exponent_attack_test() {
+duration<double, micro> Small_Exponent_attack() {
     std::cout << "Getting values from: '" << SE_test_path << "'" << std::endl;
     auto test_values = read_txt(SE_test_path);
 
@@ -277,7 +276,87 @@ void parallel_for_simple(size_t start, size_t end, Func f) {
 // ------------------ Man(Meet)-in-the-Middle attack -------------------------
 // ---------------------------------------------------------------------------
 
-// TODO
+duration<double, micro> Pure_Meet_in_the_Middle_attack() {
+    mpz_class e(static_cast<unsigned long>(E_CONST));
+
+    cout << "Getting values from: '" << MitM_test_path << "'" << endl;
+    auto test_values = read_txt(MitM_test_path);
+    mpz_class N = test_values["N"];
+    mpz_class C = test_values["C"];
+
+    cout << "> Simple MitM attack started for:" << endl;
+    cout << "l = " << L_CONST << endl;
+    cout << "N: " << N << endl;
+    cout << "C: " << C << endl;
+
+    auto timer = steady_clock::now();
+
+    size_t size = 1ULL << (L_CONST / 2);
+
+    cout << "> MitM: Started pushing at " <<
+        duration_cast<microseconds>(steady_clock::now() - timer).count() << endl;
+
+    unordered_map<mpz_class, mpz_class, MpzHash> X;
+    X.reserve(size);
+
+    // Parallel generation of X table
+    vector<pair<mpz_class, mpz_class>> temp_pairs(size);
+
+    parallel_for_simple(1, size + 1, [&](size_t a) {
+        mpz_class num(static_cast<unsigned long>(a));
+        mpz_class num_e = modpow(num, e, N);
+        temp_pairs[a - 1] = make_pair(num_e, num);
+        });
+
+    for (const auto& p : temp_pairs) {
+        X[p.first] = p.second;
+    }
+
+    cout << "> MitM: Pushing finished at " <<
+        duration_cast<microseconds>(steady_clock::now() - timer).count() << endl;
+
+    // Find S
+    atomic<bool> found(false);
+    mpz_class M;
+    mutex result_mutex;
+
+    // Create a vector of keys to iterate over
+    vector<mpz_class> keys;
+    keys.reserve(X.size());
+    for (const auto& item : X) {
+        keys.push_back(item.first);
+    }
+
+    parallel_for_simple(0, keys.size(), [&](size_t i) {
+        if (found.load()) 
+            return;
+
+        mpz_class C_S = (C * modinv(keys[i], N)) % N;
+        auto find_it = X.find(C_S);
+
+        if (find_it != X.end()) {
+            lock_guard<mutex> lock(result_mutex);
+            if (!found.load()) {
+                found.store(true);
+                M = X[keys[i]] * find_it->second;
+                cout << "> MitM message: " << M << '\n' << "MitM message in hex : ";
+                gmp_printf("%Zx\n", M); // output in hex
+
+                // Save to file
+                ofstream result_file("Simple_MitM_result.txt");
+                result_file << "MitM found message: " << M << "\n";
+                result_file << "T: " << find_it->second << "\n";
+                result_file << "S: " << X[keys[i]] << endl;
+            }
+        }
+        });
+
+    if (!found) {
+        cout << "> Message for MitM not found! Damn it!" << endl;
+    }
+
+    return steady_clock::now() - timer;
+}
 
 // ---------------------------------------------------------------------------
 // ---------------------------- Main function --------------------------------
@@ -287,8 +366,11 @@ int main() {
     try {
         std::cout << "\n--------------------------------------------\n" << std::endl;
 
-        auto SE_time = Small_Exponent_attack_test();
-        std::cout << "'Small exponent' execution time: " << SE_time.count() << " mu s" << std::endl;
+        // auto SE_time = Small_Exponent_attack();
+        // std::cout << "'Small exponent' execution time: " << SE_time.count() << " mu s" << std::endl;
+
+        auto simple_MitM_time = Pure_Meet_in_the_Middle_attack();
+        cout << "Simple Meet in the middle' execution time: " << simple_MitM_time.count() << " mu s" << endl;
 
     }
     catch (const exception& e) {
