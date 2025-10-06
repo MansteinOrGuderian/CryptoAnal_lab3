@@ -49,7 +49,7 @@ const uint32_t SE_COUNT = 5; // 3 - for test data
 
 // Man(Meet)-in-the-Middle attack
 const string MitM_path_to_txt = "../var_data/MitM_RSA_2048_20_regular_hard_var15.txt"; // ../var_data/test_MitM_RSA_256_var15.txt
-const uint32_t E_CONST = 65537; // ../var_data/bonus_MitM_RSA_2048_56_var15.txt"
+const uint32_t E_CONST = 65537; // ../var_data/bonus_MitM_RSA_2048_56_var15.txt
 const uint32_t L_CONST = 56;
 
 // For concurrency calculation in MitM
