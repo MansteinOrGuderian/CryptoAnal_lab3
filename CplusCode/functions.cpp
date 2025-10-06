@@ -334,7 +334,8 @@ duration<double, micro> Optimized_Space_Meet_in_the_Middle_attack() {
             mpz_class found_val;
             if (T_block.find(C_S, found_val)) {
                 mpz_class M = it->second * found_val;
-                std::cout << "MitM message: " << M << std::endl;
+                std::cout << "MitM message: " << M << std::endl << "MitM message in hex : ";
+                gmp_printf("%Zx\n", M); // output in hex;
 
                 ofstream result_file("Optimized_MitM_result_sym.txt");
                 result_file << "MitM found message: " << M << std::endl;
@@ -369,7 +370,8 @@ duration<double, micro> Optimized_Space_Meet_in_the_Middle_attack() {
                 mpz_class found_val;
                 if (T_block.find(C_S, found_val)) {
                     mpz_class M = it->second * found_val;
-                    std::cout << "MitM message: " << M << std::endl;
+                    std::cout << "MitM message: " << M << std::endl << "MitM message in hex : ";
+                    gmp_printf("%Zx\n", M); // output in hex;
 
                     ofstream result_file("result.txt");
                     result_file << "MitM found message: " << M << std::endl;
@@ -382,7 +384,8 @@ duration<double, micro> Optimized_Space_Meet_in_the_Middle_attack() {
                 mpz_class found_val;
                 if (S_block.find(C_S, found_val)) {
                     mpz_class M = it->second * found_val;
-                    std::cout << "MitM message: " << M << std::endl;
+                    std::cout << "MitM message: " << M << std::endl << "MitM message in hex : ";
+                    gmp_printf("%Zx\n", M); // output in hex;
 
                     ofstream result_file("Optimized_MitM_result_asym.txt");
                     result_file << "MitM found message: " << M << std::endl;
@@ -462,7 +465,8 @@ duration<double, micro> Meet_in_the_Middle_attack_streaming_parallel() {
                                 result.found.store(true, std::memory_order_release);
 
                                 std::cout << "\nSolution found by thread " << thread_id << "!" << std::endl;
-                                std::cout << "M = " << result.M << std::endl;
+                                std::cout << "M = " << result.M << std::endl << "M in hex : ";
+                                gmp_printf("%Zx\n", result.M); // output in hex;
                                 std::cout << "T = " << result.T << ", S = " << result.S << std::endl;
                             }
                             return; // Exit thread early
